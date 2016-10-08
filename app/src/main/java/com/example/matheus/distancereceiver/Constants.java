@@ -8,4 +8,6 @@ public abstract class Constants {
     public static String token = "";
     public static String lastError="";
     public static String distance=null;
+    public static String serverIp = "";
+    public static String auth = "9093498957809061b";
 }

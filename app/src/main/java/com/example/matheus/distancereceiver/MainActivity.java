@@ -14,10 +14,12 @@ import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.EditText;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.volley.AuthFailureError;
 import com.android.volley.Request;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
@@ -35,6 +37,7 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
 
 import static edu.cmu.pocketsphinx.SpeechRecognizerSetup.defaultSetup;
 
@@ -70,7 +73,7 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
             public void onClick(View view) {
                 Snackbar.make(view, "Refreshing...", Snackbar.LENGTH_LONG)
                         .setAction("Action", null).show();
-                refreshMessages();
+                refreshMessages(view);
             }
         });
 
@@ -142,6 +145,7 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
     @Override
     protected void onResume() {
         super.onResume();
+        setInputTexts();
         Log.d("MATH HERE", "onResume called");
         GoogleApiAvailability apiAvailability = GoogleApiAvailability.getInstance();
         int result = apiAvailability.isGooglePlayServicesAvailable(this);
@@ -158,27 +162,59 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
         refreshMessages();
     }
 
+    public void setInputTexts(){
+        EditText ipField = (EditText) findViewById(R.id.EditTextIp);
+        EditText authField = (EditText) findViewById(R.id.EditTextAuth);
+
+        ipField.setText(Constants.serverIp);
+        authField.setText(Constants.auth);
+    }
+
+    public void saveCredentials(View button) {
+        final EditText ipField = (EditText) findViewById(R.id.EditTextIp);
+        final EditText authField = (EditText) findViewById(R.id.EditTextAuth);
+
+        Constants.auth = authField.getText().toString();
+        Constants.serverIp = ipField.getText().toString();;
+    }
 
 
-    public void refreshMessages() {
-
-        TextView bla = (TextView) findViewById(R.id.texty);
+    public void refreshMessages(View v) {
 
         if (Constants.token.equals("")) {
             Intent intent = new Intent(this, RegistrationIntentService.class);
             startService(intent);
-            bla.setText(Constants.lastError);
+            Snackbar.make(v, Constants.lastError, Snackbar.LENGTH_LONG)
+                    .setAction("Action", null).show();
         }
         else {
-            bla.setText(Constants.token);
             //send request to Ardu
-            sendTokenToArdu(Constants.token, bla);
+            sendTokenToArdu(Constants.token, v);
 
         }
 
         String distance = Constants.distance;
-        TextView blaze = (TextView) findViewById(R.id.textDistance);
+        setValuesToScreen(distance);
 
+    }
+
+    public void refreshMessages(){
+        if (Constants.token.equals("")) {
+            Intent intent = new Intent(this, RegistrationIntentService.class);
+            startService(intent);
+        }
+        else {
+            //send request to Ardu
+            sendTokenToArdu(Constants.token);
+
+        }
+
+        String distance = Constants.distance;
+        setValuesToScreen(distance);
+    }
+
+    public void setValuesToScreen(String distance){
+        TextView blaze = (TextView) findViewById(R.id.textDistance);
         if (distance != null) {
             RelativeLayout container = (RelativeLayout) findViewById(R.id.container);
             blaze.setText(distance);
@@ -190,31 +226,82 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
             Log.d("MATH HERE", "Changed the main container's background color.");
         }
         else Log.d("MATH HERE", "The distance is null.");
-
     }
 
-    public void sendTokenToArdu(String token, final TextView bla){
+    public void sendTokenToArdu(String token, final View v){
         com.android.volley.RequestQueue queue = Volley.newRequestQueue(this);
-        String url ="http://192.168.0.8";
+        String url = Constants.serverIp.equals("") ? "192.168.0.3:3000" : Constants.serverIp;
+        url = url + ":3000/check";
+
+// Request a string response from the provided URL.
+        JsonObjectRequest stringRequest = null;
+        try {
+            stringRequest = new JsonObjectRequest(Request.Method.POST, "http://"+url, new JSONObject("{\"token\":\""+token+"\"}"),
+                            new Response.Listener<JSONObject>() {
+                                @Override
+                                public void onResponse(JSONObject response) {
+                                    try {
+                                        Constants.distance = ""+response.getInt("distance");
+                                        setValuesToScreen(Constants.distance);
+                                    } catch (JSONException e) {
+                                        e.printStackTrace();
+                                    }
+                                    Snackbar.make(v, response.toString(), Snackbar.LENGTH_LONG)
+                                            .setAction("Action", null).show();
+                                }
+                            }, new Response.ErrorListener() {
+                        @Override
+                        public void onErrorResponse(VolleyError error) {
+
+                            generateNoteOnSD( "LogRequest.txt", "error on req "+ error.getMessage());
+                            if (error.networkResponse.statusCode == 401) {
+                                Snackbar.make(v, "Invalid Authorization; got 401", Snackbar.LENGTH_LONG)
+                                        .setAction("Action", null).show();
+                            }
+                            else Snackbar.make(v, error.getMessage(), Snackbar.LENGTH_LONG)
+                                    .setAction("Action", null).show();
+
+                        }
+                    }){
+                @Override
+                public Map<String, String> getHeaders() throws AuthFailureError {
+                    Map<String,String> params = new HashMap<>();
+                    params.put("Authorization",Constants.auth);
+                    //..add other headers
+                    return params;
+                }
+            };
+        } catch (JSONException e) {
+            e.printStackTrace();
+            generateNoteOnSD( "LogRequest.txt", "error on req "+ e.getMessage());
+
+        }
+// Add the request to the RequestQueue.
+
+        queue.add(stringRequest);
+    }
+
+    public void sendTokenToArdu(String token){
+        com.android.volley.RequestQueue queue = Volley.newRequestQueue(this);
+        String url =Constants.serverIp;
 
 // Request a string response from the provided URL.
         JsonObjectRequest stringRequest = null;
         try {
             stringRequest = new JsonObjectRequest(Request.Method.POST, url, new JSONObject("{\"token\":\""+token+"\"}"),
-                            new Response.Listener<JSONObject>() {
-                                @Override
-                                public void onResponse(JSONObject response) {
-                                    // Display the first 500 characters of the response string.
-                                    bla.setText(response.toString());
-                                }
-                            }, new Response.ErrorListener() {
+                    new Response.Listener<JSONObject>() {
                         @Override
-                        public void onErrorResponse(VolleyError error) {
-                            generateNoteOnSD( "LogRequest.txt", "error on req "+ error.getMessage());
-                            bla.setText(error.getMessage());
+                        public void onResponse(JSONObject response) {
+
 
                         }
-                    });
+                    }, new Response.ErrorListener() {
+                @Override
+                public void onErrorResponse(VolleyError error) {
+                    generateNoteOnSD( "LogRequest.txt", "error on req "+ error.getMessage());
+
+                }
+            });
         } catch (JSONException e) {
             e.printStackTrace();
             generateNoteOnSD( "LogRequest.txt", "error on req "+ e.getMessage());

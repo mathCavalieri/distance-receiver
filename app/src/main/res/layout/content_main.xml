@@ -33,20 +33,49 @@
         android:id="@+id/textView2"
         android:textStyle="bold"
         android:textIsSelectable="false"
-        android:text="Distance"
+        android:text="Values"
         android:textSize="40dp"
         android:layout_marginTop="150dp" />
-
-    <TextView
-        android:id="@+id/texty"
+    <ScrollView
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/ScrollView01"
         android:layout_width="match_parent"
-        android:layout_height="60pt"
-        android:textIsSelectable="true"
-        android:layout_marginTop="0dp" />
+        android:layout_height="wrap_content"
+        android:scrollbars="vertical">
+        <LinearLayout
+            android:layout_width="fill_parent"
+            android:orientation="vertical"
+            android:layout_height="wrap_content">
 
+            <!--Put form controls here-->
+            <EditText
+                android:id="@+id/EditTextIp"
+                android:layout_height="wrap_content"
+                android:hint="Server IP + Port"
+                android:inputType="text"
+                android:layout_width="fill_parent">
+            </EditText>
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="10dp"
 
-
-
+                />
+            <EditText
+                android:id="@+id/EditTextAuth"
+                android:layout_height="wrap_content"
+                android:hint="Authorization"
+                android:inputType="text"
+                android:layout_width="fill_parent">
+            </EditText>
+            <Button
+                android:id="@+id/ButtonSave"
+                android:layout_height="wrap_content"
+                android:text="Save"
+                android:onClick="saveCredentials"
+                android:layout_width="fill_parent">
+            </Button>
+        </LinearLayout>
+    </ScrollView>
 
 </RelativeLayout>
 
