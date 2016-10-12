@@ -60,6 +60,9 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
     private boolean isFirstListen = true;
     private boolean isListening = false;
 
+    private EditText ipField;
+    private EditText authField;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -144,9 +147,15 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
 
     @Override
     protected void onResume() {
+        Bundle extras = getIntent().getExtras();
+        if(extras != null && extras.getString("newIp") != null) {
+            ipField = (EditText) findViewById(R.id.EditTextIp);
+            ipField.setText(extras.getString("newIp"));
+        }
+
+
         super.onResume();
         setInputTexts();
-        Log.d("MATH HERE", "onResume called");
         GoogleApiAvailability apiAvailability = GoogleApiAvailability.getInstance();
         int result = apiAvailability.isGooglePlayServicesAvailable(this);
         if (result != ConnectionResult.SUCCESS) {
@@ -156,15 +165,13 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
             }
 
         }
-        Log.d("MATH HERE", "Finished checking for Google Play Services availability");
 
-        Log.d("MATH HERE", "Refreshing messages.");
         refreshMessages();
     }
 
     public void setInputTexts(){
-        EditText ipField = (EditText) findViewById(R.id.EditTextIp);
-        EditText authField = (EditText) findViewById(R.id.EditTextAuth);
+         ipField = (EditText) findViewById(R.id.EditTextIp);
+        authField = (EditText) findViewById(R.id.EditTextAuth);
 
         ipField.setText(Constants.serverIp);
         authField.setText(Constants.auth);
@@ -175,7 +182,60 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
         final EditText authField = (EditText) findViewById(R.id.EditTextAuth);
 
         Constants.auth = authField.getText().toString();
-        Constants.serverIp = ipField.getText().toString();;
+        Constants.serverIp = ipField.getText().toString();
+    }
+
+    public void register(View button){
+        String token = Constants.token;
+        String url = Constants.serverIp;
+        final Context context = this;
+        if(token.equals("")){
+            Intent intent = new Intent(this, RegistrationIntentService.class);
+            startService(intent);
+        }
+        if (url.equals("")) {
+            Toast.makeText(this, "Please inform the server's IP.", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        com.android.volley.RequestQueue queue = Volley.newRequestQueue(this);
+
+        JsonObjectRequest stringRequest = null;
+        try {
+            stringRequest = new JsonObjectRequest(Request.Method.POST, "http://"+url+":3000/register", new JSONObject("{\"token\":\""+token+"\"}"),
+                    new Response.Listener<JSONObject>() {
+                        @Override
+                        public void onResponse(JSONObject response) {
+                            Toast.makeText(context, "Successfully registered.", Toast.LENGTH_SHORT).show();
+                        }
+                    }, new Response.ErrorListener() {
+                @Override
+                public void onErrorResponse(VolleyError error) {
+                    generateNoteOnSD( "LogRequest.txt", "Error on register request: "+ error.getMessage());
+                    if (error.networkResponse != null && error.networkResponse.statusCode == 401) {
+                        Toast.makeText(context, "Invalid Authorization; got 401", Toast.LENGTH_LONG).show();
+                    }
+                    else if (error.networkResponse != null && error.networkResponse.statusCode == 400) {
+                        Toast.makeText(context, "Already registered.", Toast.LENGTH_LONG).show();
+                    }
+                    else Toast.makeText(context, error.getMessage(), Toast.LENGTH_LONG).show();
+                }
+            }){
+                @Override
+                public Map<String, String> getHeaders() throws AuthFailureError {
+                    Map<String,String> params = new HashMap<>();
+                    params.put("Authorization",Constants.auth);
+                    //..add other headers
+                    return params;
+                }
+            };;
+        } catch (JSONException e) {
+            e.printStackTrace();
+            generateNoteOnSD( "LogRequest.txt", "Error on register request: "+ e.getMessage());
+
+        }
+        // Add the request to the RequestQueue.
+        queue.add(stringRequest);
     }
 
 
@@ -218,19 +278,16 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
         if (distance != null) {
             RelativeLayout container = (RelativeLayout) findViewById(R.id.container);
             blaze.setText(distance);
-            Log.d("MATH HERE", "Set textDistance's text to '" + distance + "'");
             if (Integer.parseInt(distance) < 80) {
                 //set the color to light green
                 container.setBackgroundColor(0xFF50AA50);
             } else container.setBackgroundColor(0xFFAA5050);
-            Log.d("MATH HERE", "Changed the main container's background color.");
         }
-        else Log.d("MATH HERE", "The distance is null.");
     }
 
     public void sendTokenToArdu(String token, final View v){
         com.android.volley.RequestQueue queue = Volley.newRequestQueue(this);
-        String url = Constants.serverIp.equals("") ? "192.168.0.3:3000" : Constants.serverIp;
+        String url = Constants.serverIp.equals("") ? "192.168.0.3" : Constants.serverIp;
         url = url + ":3000/check";
 
 // Request a string response from the provided URL.
@@ -254,7 +311,7 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
                         public void onErrorResponse(VolleyError error) {
 
                             generateNoteOnSD( "LogRequest.txt", "error on req "+ error.getMessage());
-                            if (error.networkResponse.statusCode == 401) {
+                            if (error.networkResponse != null && error.networkResponse.statusCode == 401) {
                                 Snackbar.make(v, "Invalid Authorization; got 401", Snackbar.LENGTH_LONG)
                                         .setAction("Action", null).show();
                             }
@@ -342,10 +399,11 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
      */
     @Override
     public void onResult(Hypothesis hypothesis) {
+        /*
         if (hypothesis != null) {
             String text = hypothesis.getHypstr();
         }
-
+        */
     }
 
     @Override
@@ -438,10 +496,6 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
 
 
     public void initializeRecognizer() {
-
-
-
-
         // Recognizer initialization is a time-consuming task and it involves IO,
         // so we execute it in an async task
 
@@ -483,7 +537,12 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
         try {
 // check if external storage is available
         if(Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
-            baseFolder = getApplicationContext().getExternalFilesDir(null).getAbsolutePath();
+            Context appContext = getApplicationContext();
+            File dir = appContext.getExternalFilesDir(null);
+            if(dir == null){
+                return;
+            }
+            baseFolder = dir.getAbsolutePath();
         }
 // revert to using internal storage
         else {

@@ -77,5 +77,14 @@
         </LinearLayout>
     </ScrollView>
 
+
+    <Button
+        android:id="@+id/ButtonRegister"
+        android:layout_height="wrap_content"
+        android:text="Register for notifications"
+        android:layout_marginTop="350sp"
+        android:onClick="register"
+        android:layout_width="fill_parent">
+    </Button>
 </RelativeLayout>
 

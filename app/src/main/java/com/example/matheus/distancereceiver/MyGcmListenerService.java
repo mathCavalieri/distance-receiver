@@ -15,9 +15,14 @@ public class MyGcmListenerService extends GcmListenerService {
     public void onMessageReceived(String from, Bundle data) {
         try {
             String distance = data.getString("distance");
-            Intent intent = new Intent(this, MainActivity.class);
+            String ip = data.getString("ip");
+            Intent intent = new Intent(this,MainActivity.class);
             Constants.distance = distance;
-            Log.d("MATH HERE", "Set the distance to the static variable 'Constants.distance'. Value: '" + distance + "'");
+            if(ip != null && !ip.equals("")) {
+                Constants.serverIp = ip;
+                intent.putExtra("newIp", ip);
+            }
+
             startService(intent);
         }
         catch(Exception e) {

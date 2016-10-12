@@ -25,13 +25,11 @@ public class RegistrationIntentService extends IntentService {
     @Override
     public void onHandleIntent(Intent intent) {
 
-        Log.d("onHandleIntent called","onHandleIntent called" );
         try {
             InstanceID instanceID = InstanceID.getInstance(this);
             String token = instanceID.getToken(Constants.sender_ID, GoogleCloudMessaging.INSTANCE_ID_SCOPE, null);
             Intent asd = new Intent(this, MainActivity.class);
             Constants.token = token;
-            Log.d("MATH HERE", "token: "+token);
             asd.putExtra("token", token);
             startService(asd);
 
@@ -39,7 +37,6 @@ public class RegistrationIntentService extends IntentService {
 
         catch (Exception e) {
             Toast.makeText(this, "Error getting a client token for GCM: " + e.getMessage(), Toast.LENGTH_LONG).show();
-            Log.d("MATH HERE", "error: "+e.getMessage());
             Constants.lastError += " "+e.getMessage();
             Intent asd = new Intent(this, MainActivity.class);
             startService(asd);
